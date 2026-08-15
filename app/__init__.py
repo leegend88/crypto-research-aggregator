@@ -1,0 +1,2 @@
+"""Crypto research aggregator package."""
+

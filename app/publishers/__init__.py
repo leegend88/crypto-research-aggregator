@@ -1,0 +1,2 @@
+"""Publishers for generated summaries."""
+

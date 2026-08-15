@@ -1,0 +1,40 @@
+sources:
+  # Binance Research exposes URLs through sitemap, but article pages currently
+  # return an anti-bot 202 empty response to requests-based extraction.
+  # Enable after adding a browser/API-backed extractor.
+  - name: Binance Research
+    type: sitemap
+    url: https://www.binance.com/sitemap_output/domain=www.binance.com/sitemap_Default_index.xml
+    include_url_patterns:
+      - /en/research/analysis/
+      - /en/research/projects/
+      - sitemap_Default_en_
+    max_items: 30
+    max_sitemaps: 2
+    enabled: false
+
+  - name: 4Pillars Research
+    type: html_listing
+    url: https://research.4pillars.io/en/research
+    include_url_patterns:
+      - /en/research/
+    max_items: 30
+    enabled: true
+
+  - name: Tiger Research Korean
+    type: html_listing
+    url: https://reports.tiger-research.com/s/korean/archive
+    include_url_patterns:
+      - /p/
+    exclude_url_patterns:
+      - /subscribe
+    max_items: 30
+    enabled: true
+
+  - name: CoinMarketCap Community Articles
+    type: html_listing
+    url: https://coinmarketcap.com/community/articles/
+    include_url_patterns:
+      - /community/articles/
+    max_items: 30
+    enabled: true

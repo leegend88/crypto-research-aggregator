@@ -1,0 +1,2 @@
+"""Collectors for article discovery."""
+
