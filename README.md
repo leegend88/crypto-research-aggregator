@@ -144,9 +144,9 @@ Telegram messages are sent in this shape:
 ```
 
 The displayed title and original title are identical. Summaries follow the
-article's section order and are not limited to a fixed number of bullets or
-characters. If a digest exceeds Telegram's 4,096-character message limit, it
-is sent as consecutive messages without dropping summary content.
+article's section order and the combined section headings and summaries are
+limited to 1,000 characters. Telegram message splitting remains as a defensive
+fallback for unusually long metadata or manually stored content.
 
 ## Tests
 

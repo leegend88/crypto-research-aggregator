@@ -18,10 +18,12 @@ Return strict JSON with this shape:
 
 Rules:
 - Follow the article's original order.
-- Create one item for every meaningful section or subheading in the article.
+- Cover every major section or subheading, combining minor adjacent paragraphs when needed.
 - If the article has no explicit subheadings, group consecutive paragraphs by topic.
 - Summarize the key argument, evidence, figures, and conclusion of each section in Korean.
-- A section summary may contain multiple sentences and does not have a character limit.
+- Keep headings concise.
+- Keep the combined headings and summaries at 1,000 Korean characters or fewer.
+- Prioritize the article's main thesis, supporting evidence, important figures, and conclusion.
 - Do not add facts, numbers, dates, interpretations, or conclusions absent from the article.
 - Preserve project names, token names, person names, organization names, numbers, ratios, dates, and amounts exactly when possible.
 - Remove ads, boilerplate, author biographies, and repetitive phrases.
@@ -37,6 +39,9 @@ Source:
 Content:
 {content}
 """
+
+MAX_SUMMARY_CHARS = 1000
+MAX_HEADING_CHARS = 80
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,11 +97,50 @@ def parse_summary_response(raw: str) -> SummaryResult:
         summary = str(item.get("summary", "")).strip()
         if not heading or not summary:
             raise SummaryError("Each summary section requires heading and summary")
-        sections.append(SummarySection(heading=heading, summary=summary))
+        sections.append(
+            SummarySection(
+                heading=_truncate_text(heading, MAX_HEADING_CHARS),
+                summary=summary,
+            )
+        )
 
     if not sections:
         raise SummaryError("OpenAI response must contain at least one section")
-    return SummaryResult(sections=sections)
+    return SummaryResult(sections=_limit_sections(sections))
+
+
+def _limit_sections(sections: list[SummarySection]) -> list[SummarySection]:
+    limited: list[SummarySection] = []
+    used = 0
+    for section in sections:
+        separator = "\n\n" if limited else ""
+        prefix = f"{separator}## {section.heading}\n"
+        available = MAX_SUMMARY_CHARS - used - len(prefix)
+        if available <= 0:
+            break
+
+        summary = _truncate_text(section.summary, available)
+        if not summary:
+            break
+        limited.append(SummarySection(heading=section.heading, summary=summary))
+        used += len(prefix) + len(summary)
+        if len(summary) < len(section.summary):
+            break
+    return limited
+
+
+def _truncate_text(value: str, limit: int) -> str:
+    value = value.strip()
+    if len(value) <= limit:
+        return value
+    if limit <= 1:
+        return "…"[:limit]
+
+    candidate = value[: limit - 1].rstrip()
+    boundary = max(candidate.rfind(" "), candidate.rfind("\n"))
+    if boundary >= int(limit * 0.6):
+        candidate = candidate[:boundary].rstrip()
+    return candidate + "…"
 
 
 def _load_json(raw: str) -> dict[str, Any]:
