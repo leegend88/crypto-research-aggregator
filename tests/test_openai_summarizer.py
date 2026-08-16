@@ -1,35 +1,44 @@
 import pytest
 
-from app.summarizers.openai_summarizer import (
-    MAX_BULLET_CHARS,
-    SummaryError,
-    parse_summary_response,
-)
+from app.summarizers.openai_summarizer import SummaryError, parse_summary_response
 
 
-def test_parse_summary_response_returns_translated_title_and_limited_bullets():
+def test_parse_summary_response_preserves_order_and_long_section_summaries():
+    long_summary = "상세한 근거와 수치를 포함한 문장입니다. " * 20
     result = parse_summary_response(
         """
         {
-          "korean_title": "비트코인 유동성 전망",
-          "bullets": [
-            "비트코인 현물 ETF 유입이 시장 유동성 회복을 뒷받침했다.",
-            "ETH와 SOL 등 주요 자산의 등락률만 선별해 설명했다.",
-            "거래량은 전주 대비 증가했지만 파생상품 레버리지는 제한적이었다.",
-            "네 번째 불릿은 유지된다.",
-            "다섯 번째 불릿은 제거된다."
+          "sections": [
+            {
+              "heading": "시장 배경",
+              "summary": "거시경제 환경과 시장 변화의 배경을 설명한다."
+            },
+            {
+              "heading": "핵심 분석",
+              "summary": "%s"
+            }
           ]
         }
         """
+        % long_summary
     )
 
-    assert result.korean_title == "비트코인 유동성 전망"
-    assert len(result.bullets) == 4
-    assert "다섯 번째" not in result.summary_text
-    assert all(len(bullet) <= MAX_BULLET_CHARS for bullet in result.bullets)
+    assert [section.heading for section in result.sections] == [
+        "시장 배경",
+        "핵심 분석",
+    ]
+    assert result.sections[1].summary == long_summary.strip()
+    assert "## 시장 배경" in result.summary_text
+    assert "## 핵심 분석" in result.summary_text
 
 
-def test_parse_summary_response_requires_at_least_three_bullets():
+def test_parse_summary_response_requires_complete_section():
     with pytest.raises(SummaryError):
-        parse_summary_response('{"korean_title": "제목", "bullets": ["하나", "둘"]}')
+        parse_summary_response(
+            '{"sections": [{"heading": "시장 배경", "summary": ""}]}'
+        )
 
+
+def test_parse_summary_response_requires_at_least_one_section():
+    with pytest.raises(SummaryError):
+        parse_summary_response('{"sections": []}')

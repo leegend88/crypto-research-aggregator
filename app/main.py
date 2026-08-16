@@ -122,7 +122,7 @@ def _process_article(
             content=article.content,
         )
         article.summary = summary_result.summary_text
-        article.korean_title = summary_result.korean_title
+        article.korean_title = article.title
         stats.summary_success += 1
     except Exception as exc:
         logger.exception("Article summary failed: %s", article.url)

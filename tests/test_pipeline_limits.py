@@ -4,7 +4,7 @@ from app import main as pipeline
 from app.config import Settings, SourceConfig
 from app.database import ArticleRepository
 from app.models import Article
-from app.summarizers.openai_summarizer import SummaryResult
+from app.summarizers.openai_summarizer import SummaryResult, SummarySection
 
 
 def test_run_pipeline_processes_latest_articles_up_to_limit(tmp_path, monkeypatch):
@@ -50,8 +50,12 @@ def test_run_pipeline_processes_latest_articles_up_to_limit(tmp_path, monkeypatc
 
         def summarize(self, title, source_name, content):
             return SummaryResult(
-                korean_title=f"{title} 한국어",
-                bullets=["하나", "둘", "셋"],
+                sections=[
+                    SummarySection(
+                        heading="핵심 분석",
+                        summary="상세한 핵심 내용",
+                    )
+                ],
             )
 
     class FakePublisher:

@@ -127,17 +127,26 @@ instead of the Actions cache.
 Telegram messages are sent in this shape:
 
 ```text
-📌 한국어 제목
+📌 English original title
 원문 제목: English original title
 출처: Source
 발행일: YYYY-MM-DD
 
-• 핵심 내용
-• 핵심 내용
-• 핵심 내용
+핵심 요약
+
+소제목 1
+해당 문단이나 소제목의 핵심 주장, 근거, 수치와 결론을 상세히 요약합니다.
+
+소제목 2
+다음 문단이나 소제목의 핵심 내용을 원문 순서대로 요약합니다.
 
 🔗 원문 보기
 ```
+
+The displayed title and original title are identical. Summaries follow the
+article's section order and are not limited to a fixed number of bullets or
+characters. If a digest exceeds Telegram's 4,096-character message limit, it
+is sent as consecutive messages without dropping summary content.
 
 ## Tests
 
@@ -151,7 +160,7 @@ pytest
 - `app/database.py`: SQLite schema and article status updates
 - `app/collectors/rss_collector.py`: RSS feed parsing
 - `app/extractors/article_extractor.py`: article text extraction and fallback parsing
-- `app/summarizers/openai_summarizer.py`: Korean bullet-point summaries
+- `app/summarizers/openai_summarizer.py`: section-by-section Korean summaries
 - `app/publishers/telegram_publisher.py`: Telegram HTML message formatting and sending
 - `app/main.py`: end-to-end pipeline orchestration
 - `app/scheduler.py`: APScheduler daily run

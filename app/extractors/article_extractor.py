@@ -24,7 +24,13 @@ class ArticleExtractor:
 
     def extract(self, url: str) -> str:
         html = self._download(url)
-        content = trafilatura.extract(html, url=url, include_comments=False)
+        content = trafilatura.extract(
+            html,
+            url=url,
+            include_comments=False,
+            include_formatting=True,
+            output_format="markdown",
+        )
         if not content:
             content = self._fallback_extract(html)
         content = _normalize_text(content or "")
@@ -70,4 +76,3 @@ def _normalize_text(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
-

@@ -11,22 +11,24 @@ SUMMARY_PROMPT = """Summarize the following crypto research article for a Korean
 
 Return strict JSON with this shape:
 {{
-  "korean_title": "Natural Korean translation of the English title",
-  "bullets": ["bullet 1", "bullet 2", "bullet 3"]
+  "sections": [
+    {{"heading": "Korean section heading", "summary": "Detailed Korean summary"}}
+  ]
 }}
 
 Rules:
-- Translate the original English title into a natural Korean title.
-- Write exactly 3 or 4 Korean bullet strings.
-- Each bullet must be one sentence and about 80 Korean characters or fewer.
-- If the article lists many token-by-token price changes, keep only the 3 most important and summarize the rest.
+- Follow the article's original order.
+- Create one item for every meaningful section or subheading in the article.
+- If the article has no explicit subheadings, group consecutive paragraphs by topic.
+- Summarize the key argument, evidence, figures, and conclusion of each section in Korean.
+- A section summary may contain multiple sentences and does not have a character limit.
 - Do not add facts, numbers, dates, interpretations, or conclusions absent from the article.
 - Preserve project names, token names, person names, organization names, numbers, ratios, dates, and amounts exactly when possible.
-- Remove ads, boilerplate, and repetitive phrases.
+- Remove ads, boilerplate, author biographies, and repetitive phrases.
 - Do not phrase anything as investment advice or a buy/sell recommendation.
 - Return JSON only. Do not wrap it in Markdown.
 
-Title:
+Original title (keep this title unchanged in the Telegram message):
 {title}
 
 Source:
@@ -36,19 +38,22 @@ Content:
 {content}
 """
 
-MAX_BULLETS = 4
-MIN_BULLETS = 3
-MAX_BULLET_CHARS = 80
+
+@dataclass(frozen=True, slots=True)
+class SummarySection:
+    heading: str
+    summary: str
 
 
 @dataclass(frozen=True, slots=True)
 class SummaryResult:
-    korean_title: str
-    bullets: list[str]
+    sections: list[SummarySection]
 
     @property
     def summary_text(self) -> str:
-        return "\n".join(f"• {bullet}" for bullet in self.bullets)
+        return "\n\n".join(
+            f"## {section.heading}\n{section.summary}" for section in self.sections
+        )
 
 
 class SummaryError(RuntimeError):
@@ -75,19 +80,23 @@ class OpenAISummarizer:
 
 def parse_summary_response(raw: str) -> SummaryResult:
     payload = _load_json(raw)
-    korean_title = str(payload.get("korean_title", "")).strip()
-    bullets_raw = payload.get("bullets", [])
-    if not korean_title:
-        raise SummaryError("OpenAI response is missing korean_title")
-    if not isinstance(bullets_raw, list):
-        raise SummaryError("OpenAI response bullets must be a list")
+    sections_raw = payload.get("sections", [])
+    if not isinstance(sections_raw, list):
+        raise SummaryError("OpenAI response sections must be a list")
 
-    bullets = [_normalize_bullet(str(item)) for item in bullets_raw]
-    bullets = [bullet for bullet in bullets if bullet]
-    bullets = bullets[:MAX_BULLETS]
-    if len(bullets) < MIN_BULLETS:
-        raise SummaryError("OpenAI response must contain at least 3 bullets")
-    return SummaryResult(korean_title=korean_title, bullets=bullets)
+    sections: list[SummarySection] = []
+    for item in sections_raw:
+        if not isinstance(item, dict):
+            raise SummaryError("Each summary section must be a JSON object")
+        heading = str(item.get("heading", "")).strip()
+        summary = str(item.get("summary", "")).strip()
+        if not heading or not summary:
+            raise SummaryError("Each summary section requires heading and summary")
+        sections.append(SummarySection(heading=heading, summary=summary))
+
+    if not sections:
+        raise SummaryError("OpenAI response must contain at least one section")
+    return SummaryResult(sections=sections)
 
 
 def _load_json(raw: str) -> dict[str, Any]:
@@ -98,12 +107,3 @@ def _load_json(raw: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SummaryError("OpenAI response must be a JSON object")
     return payload
-
-
-def _normalize_bullet(value: str) -> str:
-    value = value.strip()
-    if value.startswith(("-", "*", "•")):
-        value = value[1:].strip()
-    if len(value) <= MAX_BULLET_CHARS:
-        return value
-    return value[: MAX_BULLET_CHARS - 1].rstrip() + "…"
