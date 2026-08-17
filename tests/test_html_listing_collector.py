@@ -56,3 +56,23 @@ def test_html_listing_collector_respects_exclude_patterns():
     articles = collector._parse_listing(html)
 
     assert [article.url for article in articles] == ["https://example.com/p/report"]
+
+
+def test_html_listing_collector_prefers_heading_over_card_description():
+    source = SourceConfig(
+        name="Example Research",
+        type="html_listing",
+        url="https://example.com/community/articles",
+        include_url_patterns=("/community/articles/",),
+    )
+    collector = HTMLListingCollector(source)
+    html = """
+    <a href="/community/articles/market-update">
+      <h3>Market Update</h3>
+      <p>This description must not be appended to the article title.</p>
+    </a>
+    """
+
+    articles = collector._parse_listing(html)
+
+    assert articles[0].title == "Market Update"

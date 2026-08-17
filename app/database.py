@@ -86,6 +86,7 @@ class ArticleRepository:
 
     def save_discovered(self, article: Article) -> int | None:
         if self.is_duplicate(article):
+            self._refresh_metadata(article)
             return None
         with self.connect() as conn:
             cursor = conn.execute(
@@ -106,6 +107,34 @@ class ArticleRepository:
                 ),
             )
             return int(cursor.lastrowid)
+
+    def _refresh_metadata(self, article: Article) -> None:
+        published_at = _datetime_to_text(article.published_at)
+        with self.connect() as conn:
+            if article.external_id:
+                conn.execute(
+                    """
+                    UPDATE articles
+                    SET title = ?, published_at = COALESCE(?, published_at)
+                    WHERE url = ? OR (source_name = ? AND external_id = ?)
+                    """,
+                    (
+                        article.title,
+                        published_at,
+                        article.url,
+                        article.source_name,
+                        article.external_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE articles
+                    SET title = ?, published_at = COALESCE(?, published_at)
+                    WHERE url = ?
+                    """,
+                    (article.title, published_at, article.url),
+                )
 
     def update_status(
         self,

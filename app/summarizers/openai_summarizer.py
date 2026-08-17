@@ -12,31 +12,36 @@ SUMMARY_PROMPT = """Summarize the following crypto research article for a Korean
 Return strict JSON with this shape:
 {{
   "sections": [
-    {{"heading": "Korean section heading", "summary": "Detailed Korean summary"}}
+    {{
+      "heading": "Concise Korean translation of an original section heading",
+      "bullets": ["Korean key point", "Korean key point"]
+    }}
   ]
 }}
 
 Rules:
-- Follow the article's original order.
-- Cover every major section or subheading, combining minor adjacent paragraphs when needed.
-- If the article has no explicit subheadings, group consecutive paragraphs by topic.
-- Summarize the key argument, evidence, figures, and conclusion of each section in Korean.
-- Keep headings concise.
-- Keep the combined headings and summaries at 1,000 Korean characters or fewer.
-- Prioritize the article's main thesis, supporting evidence, important figures, and conclusion.
+- Follow the article's original section order.
+- Use the article's real intermediate headings as section headings and translate them naturally into Korean.
+- If the article has no explicit intermediate headings, create concise topic headings from the body.
+- Never reuse, paraphrase, or truncate the article title as a section heading.
+- Write 1 to 3 Korean bullet points for each section; each bullet must contain one factual key point.
+- Cover every major section, combining minor adjacent sections only when needed to stay concise.
+- Keep all headings, bullet markers, and bullet text together at 1,000 characters or fewer.
+- Prioritize the main thesis, supporting evidence, important figures, and conclusion.
+- Summarize only the article body. Ignore ads, navigation, sidebars, related articles, image captions, author biographies, and boilerplate.
+- Never describe the page or extraction process. Do not write phrases such as "the title says", "the introduction says", "the source is", "the body is missing", or "ads were removed".
 - Do not add facts, numbers, dates, interpretations, or conclusions absent from the article.
 - Preserve project names, token names, person names, organization names, numbers, ratios, dates, and amounts exactly when possible.
-- Remove ads, boilerplate, author biographies, and repetitive phrases.
 - Do not phrase anything as investment advice or a buy/sell recommendation.
 - Return JSON only. Do not wrap it in Markdown.
 
-Original title (keep this title unchanged in the Telegram message):
+Article title (displayed separately; do not use it as a section heading):
 {title}
 
 Source:
 {source_name}
 
-Content:
+Article body:
 {content}
 """
 
@@ -47,7 +52,7 @@ MAX_HEADING_CHARS = 80
 @dataclass(frozen=True, slots=True)
 class SummarySection:
     heading: str
-    summary: str
+    bullets: list[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +62,9 @@ class SummaryResult:
     @property
     def summary_text(self) -> str:
         return "\n\n".join(
-            f"## {section.heading}\n{section.summary}" for section in self.sections
+            f"## {section.heading}\n"
+            + "\n".join(f"• {bullet}" for bullet in section.bullets)
+            for section in self.sections
         )
 
 
@@ -94,13 +101,18 @@ def parse_summary_response(raw: str) -> SummaryResult:
         if not isinstance(item, dict):
             raise SummaryError("Each summary section must be a JSON object")
         heading = str(item.get("heading", "")).strip()
-        summary = str(item.get("summary", "")).strip()
-        if not heading or not summary:
-            raise SummaryError("Each summary section requires heading and summary")
+        bullets_raw = item.get("bullets", [])
+        if not heading or not isinstance(bullets_raw, list):
+            raise SummaryError("Each summary section requires heading and bullets")
+
+        bullets = [_normalize_bullet(str(bullet)) for bullet in bullets_raw]
+        bullets = [bullet for bullet in bullets if bullet]
+        if not bullets:
+            raise SummaryError("Each summary section requires at least one bullet")
         sections.append(
             SummarySection(
                 heading=_truncate_text(heading, MAX_HEADING_CHARS),
-                summary=summary,
+                bullets=bullets[:3],
             )
         )
 
@@ -114,19 +126,40 @@ def _limit_sections(sections: list[SummarySection]) -> list[SummarySection]:
     used = 0
     for section in sections:
         separator = "\n\n" if limited else ""
-        prefix = f"{separator}## {section.heading}\n"
-        available = MAX_SUMMARY_CHARS - used - len(prefix)
-        if available <= 0:
+        heading_text = f"{separator}## {section.heading}\n"
+        remaining = MAX_SUMMARY_CHARS - used - len(heading_text)
+        if remaining <= 3:
             break
 
-        summary = _truncate_text(section.summary, available)
-        if not summary:
+        bullets: list[str] = []
+        truncated = False
+        for bullet in section.bullets:
+            bullet_prefix = "\n" if bullets else ""
+            available = remaining - len(bullet_prefix) - 2
+            if available <= 1:
+                break
+            limited_bullet = _truncate_text(bullet, available)
+            bullets.append(limited_bullet)
+            consumed = len(bullet_prefix) + 2 + len(limited_bullet)
+            remaining -= consumed
+            if len(limited_bullet) < len(bullet):
+                truncated = True
+                break
+
+        if not bullets:
             break
-        limited.append(SummarySection(heading=section.heading, summary=summary))
-        used += len(prefix) + len(summary)
-        if len(summary) < len(section.summary):
+        limited.append(SummarySection(heading=section.heading, bullets=bullets))
+        used = len(SummaryResult(limited).summary_text)
+        if truncated:
             break
     return limited
+
+
+def _normalize_bullet(value: str) -> str:
+    value = value.strip()
+    while value.startswith(("-", "*", "•")):
+        value = value[1:].strip()
+    return value
 
 
 def _truncate_text(value: str, limit: int) -> str:

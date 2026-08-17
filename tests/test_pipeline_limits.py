@@ -53,7 +53,7 @@ def test_run_pipeline_processes_latest_articles_up_to_limit(tmp_path, monkeypatc
                 sections=[
                     SummarySection(
                         heading="핵심 분석",
-                        summary="상세한 핵심 내용",
+                        bullets=["상세한 핵심 내용"],
                     )
                 ],
             )

@@ -8,23 +8,26 @@ from app.summarizers.openai_summarizer import (
 
 
 def test_parse_summary_response_preserves_order_and_limits_total_length():
-    long_summary = "상세한 근거와 수치를 포함한 문장입니다. " * 100
+    long_bullet = "상세한 근거와 수치를 포함한 문장입니다. " * 100
     result = parse_summary_response(
         """
         {
           "sections": [
             {
               "heading": "시장 배경",
-              "summary": "거시경제 환경과 시장 변화의 배경을 설명한다."
+              "bullets": [
+                "거시경제 환경을 설명한다.",
+                "시장 변화의 배경을 정리한다."
+              ]
             },
             {
               "heading": "핵심 분석",
-              "summary": "%s"
+              "bullets": ["%s"]
             }
           ]
         }
         """
-        % long_summary
+        % long_bullet
     )
 
     assert [section.heading for section in result.sections] == [
@@ -33,6 +36,7 @@ def test_parse_summary_response_preserves_order_and_limits_total_length():
     ]
     assert len(result.summary_text) <= MAX_SUMMARY_CHARS
     assert "## 시장 배경" in result.summary_text
+    assert "• 거시경제 환경을 설명한다." in result.summary_text
     assert "## 핵심 분석" in result.summary_text
     assert result.summary_text.endswith("…")
 
@@ -40,10 +44,25 @@ def test_parse_summary_response_preserves_order_and_limits_total_length():
 def test_parse_summary_response_requires_complete_section():
     with pytest.raises(SummaryError):
         parse_summary_response(
-            '{"sections": [{"heading": "시장 배경", "summary": ""}]}'
+            '{"sections": [{"heading": "시장 배경", "bullets": []}]}'
         )
 
 
 def test_parse_summary_response_requires_at_least_one_section():
     with pytest.raises(SummaryError):
         parse_summary_response('{"sections": []}')
+
+
+def test_parse_summary_response_normalizes_and_limits_bullets_per_section():
+    result = parse_summary_response(
+        """
+        {
+          "sections": [{
+            "heading": "온체인 동향",
+            "bullets": ["- 첫째", "* 둘째", "• 셋째", "넷째"]
+          }]
+        }
+        """
+    )
+
+    assert result.sections[0].bullets == ["첫째", "둘째", "셋째"]

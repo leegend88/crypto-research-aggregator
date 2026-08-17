@@ -108,9 +108,10 @@ def _format_summary_blocks(summary: str, content_limit: int) -> list[str]:
 
     max_body_length = max(200, content_limit - 300)
     blocks: list[str] = []
-    for heading, body in sections:
+    for heading, bullets in sections:
         escaped_heading = html.escape(heading) if heading else ""
         prefix = f"<b>{escaped_heading}</b>\n" if escaped_heading else ""
+        body = "\n".join(f"• {bullet}" for bullet in bullets)
         available = max(100, max_body_length - len(prefix))
         body_parts = _split_escaped_text(body, available)
         for index, body_part in enumerate(body_parts):
@@ -121,19 +122,30 @@ def _format_summary_blocks(summary: str, content_limit: int) -> list[str]:
     return blocks
 
 
-def _parse_summary_sections(summary: str) -> list[tuple[str | None, str]]:
+def _parse_summary_sections(summary: str) -> list[tuple[str | None, list[str]]]:
     paragraphs = [part.strip() for part in summary.split("\n\n") if part.strip()]
-    sections: list[tuple[str | None, str]] = []
+    sections: list[tuple[str | None, list[str]]] = []
     for paragraph in paragraphs:
         lines = paragraph.splitlines()
         if lines[0].startswith("## "):
             heading = lines[0][3:].strip()
-            body = "\n".join(lines[1:]).strip()
-            if heading and body:
-                sections.append((heading, body))
+            bullets = [_normalize_summary_bullet(line) for line in lines[1:]]
+            bullets = [bullet for bullet in bullets if bullet]
+            if heading and bullets:
+                sections.append((heading, bullets))
         else:
-            sections.append((None, paragraph))
+            bullets = [_normalize_summary_bullet(line) for line in lines]
+            bullets = [bullet for bullet in bullets if bullet]
+            if bullets:
+                sections.append((None, bullets))
     return sections
+
+
+def _normalize_summary_bullet(value: str) -> str:
+    value = value.strip()
+    while value.startswith(("-", "*", "•")):
+        value = value[1:].strip()
+    return value
 
 
 def _split_escaped_text(text: str, limit: int) -> list[str]:

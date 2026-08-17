@@ -78,10 +78,14 @@ def _normalize_url(url: str) -> str:
 
 
 def _extract_title(anchor) -> str | None:
+    heading = anchor.find(["h1", "h2", "h3", "h4"])
+    if heading is None:
+        heading = anchor.find_parent(["h1", "h2", "h3", "h4"])
     candidates = [
-        anchor.get_text(" ", strip=True),
+        heading.get_text(" ", strip=True) if heading else "",
         anchor.get("title", ""),
         anchor.get("aria-label", ""),
+        anchor.get_text(" ", strip=True),
     ]
     parent = anchor.find_parent(["article", "li", "div"])
     if parent:
