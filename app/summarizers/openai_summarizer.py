@@ -24,7 +24,9 @@ Rules:
 - Use the article's real intermediate headings as section headings and translate them naturally into Korean.
 - If the article has no explicit intermediate headings, create concise topic headings from the body.
 - Never reuse, paraphrase, or truncate the article title as a section heading.
-- Write 1 to 3 Korean bullet points for each section; each bullet must contain one factual key point.
+- Write 2 to 4 Korean bullet points for each major section when the source contains enough detail.
+- Each bullet may use up to two complete sentences and should explain the fact, supporting evidence or figure, and why it matters in context.
+- Avoid terse fragments. Preserve the article's causal reasoning, comparisons, caveats, and concrete examples.
 - Cover every major section, combining minor adjacent sections only when needed to stay concise.
 - Keep all headings, bullet markers, and bullet text together at 1,000 characters or fewer.
 - Prioritize the main thesis, supporting evidence, important figures, and conclusion.
@@ -112,7 +114,7 @@ def parse_summary_response(raw: str) -> SummaryResult:
         sections.append(
             SummarySection(
                 heading=_truncate_text(heading, MAX_HEADING_CHARS),
-                bullets=bullets[:3],
+                bullets=bullets[:4],
             )
         )
 

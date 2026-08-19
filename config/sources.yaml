@@ -14,11 +14,12 @@ sources:
     enabled: false
 
   - name: 4Pillars Research
-    type: html_listing
-    url: https://research.4pillars.io/en/research
+    type: sitemap
+    url: https://research.4pillars.io/sitemap.xml
     include_url_patterns:
       - /en/research/
     max_items: 30
+    max_sitemaps: 1
     enabled: true
 
   - name: Tiger Research Korean

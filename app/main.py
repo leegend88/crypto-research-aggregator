@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import logging
 from datetime import UTC, datetime
 
@@ -67,7 +68,8 @@ def run_pipeline(settings: Settings) -> RunStats:
         stats.new += 1
 
     pending = repository.pending_articles(retry_failed=settings.retry_failed_articles)
-    for article_id, article in pending[: max(0, settings.max_articles_per_run)]:
+    selected = _select_articles_for_run(pending, settings.max_articles_per_run)
+    for article_id, article in selected:
         _process_article(
             article_id,
             article,
@@ -161,6 +163,30 @@ def _article_sort_key(article: Article) -> datetime:
     if article.published_at.tzinfo is None:
         return article.published_at.replace(tzinfo=UTC)
     return article.published_at.astimezone(UTC)
+
+
+def _select_articles_for_run(
+    pending: list[tuple[int, Article]],
+    limit: int,
+) -> list[tuple[int, Article]]:
+    if limit <= 0:
+        return []
+
+    by_source: dict[str, deque[tuple[int, Article]]] = {}
+    for item in pending:
+        by_source.setdefault(item[1].source_name, deque()).append(item)
+
+    selected: list[tuple[int, Article]] = []
+    queues = list(by_source.values())
+    while queues and len(selected) < limit:
+        active: list[deque[tuple[int, Article]]] = []
+        for queue in queues:
+            if queue and len(selected) < limit:
+                selected.append(queue.popleft())
+            if queue:
+                active.append(queue)
+        queues = active
+    return selected
 
 
 def _collector_for_source_type(source_type: str):

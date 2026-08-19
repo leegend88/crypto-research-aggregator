@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import html
 import time
-from datetime import datetime
 
 import requests
 
@@ -70,15 +69,11 @@ def format_telegram_message(article: Article) -> str:
 
 def format_telegram_messages(article: Article) -> list[str]:
     title = html.escape(article.title)
-    source = html.escape(article.source_name)
-    published = _format_date(article.published_at)
     url = html.escape(article.url, quote=True)
 
     header = (
         f"📌 <b>{title}</b>\n"
-        f"원문 제목: {title}\n"
-        f"출처: {source}\n"
-        f"발행일: {published}\n\n"
+        f"\n"
         f"<b>핵심 요약</b>"
     )
     continuation = f"📌 <b>{title}</b> (계속)"
@@ -174,9 +169,3 @@ def _split_escaped_text(text: str, limit: int) -> list[str]:
         parts.append(remaining[:split_at].rstrip())
         remaining = remaining[split_at:].lstrip()
     return parts
-
-
-def _format_date(value: datetime | None) -> str:
-    if value is None:
-        return "확인 불가"
-    return value.date().isoformat()

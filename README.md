@@ -47,7 +47,9 @@ MAX_ARTICLES_PER_RUN=5
 ```
 
 Each run stores newly discovered articles, then processes at most
-`MAX_ARTICLES_PER_RUN` pending articles in latest-first order.
+`MAX_ARTICLES_PER_RUN` pending articles. Sources are selected in round-robin
+order, while articles within each source remain latest-first, so one high-volume
+source cannot occupy the entire run.
 
 ## Telegram Setup
 
@@ -128,15 +130,12 @@ Telegram messages are sent in this shape:
 
 ```text
 📌 English original title
-원문 제목: English original title
-출처: Source
-발행일: YYYY-MM-DD
 
 핵심 요약
 
 소제목 1
-• 해당 문단의 핵심 주장과 근거를 요약합니다.
-• 중요한 수치와 결론을 요약합니다.
+• 해당 문단의 핵심 주장과 근거, 중요한 수치를 구체적으로 요약합니다.
+• 인과관계와 비교 기준, 주의할 해석까지 원문에 근거해 설명합니다.
 
 소제목 2
 • 다음 문단의 핵심 내용을 원문 순서대로 요약합니다.
@@ -144,10 +143,9 @@ Telegram messages are sent in this shape:
 🔗 원문 보기
 ```
 
-The displayed title and original title are identical. Summaries follow the
-article's section order and the combined section headings and summaries are
-limited to 1,000 characters. Telegram message splitting remains as a defensive
-fallback for unusually long metadata or manually stored content.
+Summaries follow the article's section order and the combined section headings
+and summaries are limited to 1,000 characters. Telegram message splitting
+remains as a defensive fallback for manually stored content.
 
 ## Tests
 

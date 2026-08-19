@@ -65,4 +65,4 @@ def test_parse_summary_response_normalizes_and_limits_bullets_per_section():
         """
     )
 
-    assert result.sections[0].bullets == ["첫째", "둘째", "셋째"]
+    assert result.sections[0].bullets == ["첫째", "둘째", "셋째", "넷째"]

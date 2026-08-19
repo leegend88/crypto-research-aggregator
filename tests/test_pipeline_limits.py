@@ -102,3 +102,24 @@ def test_run_pipeline_processes_latest_articles_up_to_limit(tmp_path, monkeypatc
     assert [article.url for _, article in repo.pending_articles()] == [
         "https://example.com/old"
     ]
+
+
+def test_select_articles_for_run_balances_sources_before_repeating():
+    pending = [
+        (1, Article(source_name="CoinMarketCap", title="CMC 1", url="cmc-1")),
+        (2, Article(source_name="CoinMarketCap", title="CMC 2", url="cmc-2")),
+        (3, Article(source_name="Tiger", title="Tiger 1", url="tiger-1")),
+        (4, Article(source_name="4Pillars", title="4P 1", url="4p-1")),
+        (5, Article(source_name="Tiger", title="Tiger 2", url="tiger-2")),
+        (6, Article(source_name="CoinMarketCap", title="CMC 3", url="cmc-3")),
+    ]
+
+    selected = pipeline._select_articles_for_run(pending, limit=5)
+
+    assert [article.url for _, article in selected] == [
+        "cmc-1",
+        "tiger-1",
+        "4p-1",
+        "cmc-2",
+        "tiger-2",
+    ]
