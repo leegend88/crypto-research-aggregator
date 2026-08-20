@@ -144,7 +144,8 @@ Telegram messages are sent in this shape:
 ```
 
 Summaries follow the article's section order and the combined section headings
-and summaries are limited to 1,000 characters. Telegram message splitting
+and summaries are limited to 2,000 characters. The summarizer prioritizes
+complete sections and sentences so content is not cut mid-thought. Telegram message splitting
 remains as a defensive fallback for manually stored content.
 
 ## Tests

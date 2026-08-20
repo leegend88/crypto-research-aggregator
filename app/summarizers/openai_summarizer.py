@@ -28,7 +28,9 @@ Rules:
 - Each bullet may use up to two complete sentences and should explain the fact, supporting evidence or figure, and why it matters in context.
 - Avoid terse fragments. Preserve the article's causal reasoning, comparisons, caveats, and concrete examples.
 - Cover every major section, combining minor adjacent sections only when needed to stay concise.
-- Keep all headings, bullet markers, and bullet text together at 1,000 characters or fewer.
+- Keep all headings, bullet markers, and bullet text together at 2,000 characters or fewer.
+- Unless the source is short, use roughly 1,500 to 2,000 characters to retain meaningful detail.
+- Plan the response so every included section and bullet is complete within the limit; combine or omit minor details instead of ending midway through a heading, bullet, or sentence.
 - Prioritize the main thesis, supporting evidence, important figures, and conclusion.
 - Summarize only the article body. Ignore ads, navigation, sidebars, related articles, image captions, author biographies, and boilerplate.
 - Never describe the page or extraction process. Do not write phrases such as "the title says", "the introduction says", "the source is", "the body is missing", or "ads were removed".
@@ -47,7 +49,7 @@ Article body:
 {content}
 """
 
-MAX_SUMMARY_CHARS = 1000
+MAX_SUMMARY_CHARS = 2000
 MAX_HEADING_CHARS = 80
 
 
@@ -172,6 +174,15 @@ def _truncate_text(value: str, limit: int) -> str:
         return "…"[:limit]
 
     candidate = value[: limit - 1].rstrip()
+    sentence_end = max(
+        candidate.rfind(".") + 1,
+        candidate.rfind("!") + 1,
+        candidate.rfind("?") + 1,
+        candidate.rfind("。") + 1,
+    )
+    if sentence_end >= int(limit * 0.5):
+        return candidate[:sentence_end].rstrip() + "…"
+
     boundary = max(candidate.rfind(" "), candidate.rfind("\n"))
     if boundary >= int(limit * 0.6):
         candidate = candidate[:boundary].rstrip()

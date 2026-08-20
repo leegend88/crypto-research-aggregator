@@ -38,7 +38,11 @@ def test_parse_summary_response_preserves_order_and_limits_total_length():
     assert "## 시장 배경" in result.summary_text
     assert "• 거시경제 환경을 설명한다." in result.summary_text
     assert "## 핵심 분석" in result.summary_text
-    assert result.summary_text.endswith("…")
+    assert result.summary_text.endswith("입니다.…")
+
+
+def test_summary_limit_is_two_thousand_characters():
+    assert MAX_SUMMARY_CHARS == 2000
 
 
 def test_parse_summary_response_requires_complete_section():
