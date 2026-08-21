@@ -28,9 +28,9 @@ Rules:
 - Each bullet may use up to two complete sentences and should explain the fact, supporting evidence or figure, and why it matters in context.
 - Avoid terse fragments. Preserve the article's causal reasoning, comparisons, caveats, and concrete examples.
 - Cover every major section, combining minor adjacent sections only when needed to stay concise.
-- Keep all headings, bullet markers, and bullet text together at 2,000 characters or fewer.
-- Unless the source is short, use roughly 1,500 to 2,000 characters to retain meaningful detail.
-- Plan the response so every included section and bullet is complete within the limit; combine or omit minor details instead of ending midway through a heading, bullet, or sentence.
+- Include every major section needed to represent the full article; do not stop after an arbitrary character count.
+- Keep each bullet focused and complete. The publisher will split the full summary into consecutive Telegram posts of about 2,000 characters.
+- Do not omit later sections merely to fit one Telegram post.
 - Prioritize the main thesis, supporting evidence, important figures, and conclusion.
 - Summarize only the article body. Ignore ads, navigation, sidebars, related articles, image captions, author biographies, and boilerplate.
 - Never describe the page or extraction process. Do not write phrases such as "the title says", "the introduction says", "the source is", "the body is missing", or "ads were removed".
@@ -49,7 +49,6 @@ Article body:
 {content}
 """
 
-MAX_SUMMARY_CHARS = 2000
 MAX_HEADING_CHARS = 80
 
 
@@ -122,41 +121,7 @@ def parse_summary_response(raw: str) -> SummaryResult:
 
     if not sections:
         raise SummaryError("OpenAI response must contain at least one section")
-    return SummaryResult(sections=_limit_sections(sections))
-
-
-def _limit_sections(sections: list[SummarySection]) -> list[SummarySection]:
-    limited: list[SummarySection] = []
-    used = 0
-    for section in sections:
-        separator = "\n\n" if limited else ""
-        heading_text = f"{separator}## {section.heading}\n"
-        remaining = MAX_SUMMARY_CHARS - used - len(heading_text)
-        if remaining <= 3:
-            break
-
-        bullets: list[str] = []
-        truncated = False
-        for bullet in section.bullets:
-            bullet_prefix = "\n" if bullets else ""
-            available = remaining - len(bullet_prefix) - 2
-            if available <= 1:
-                break
-            limited_bullet = _truncate_text(bullet, available)
-            bullets.append(limited_bullet)
-            consumed = len(bullet_prefix) + 2 + len(limited_bullet)
-            remaining -= consumed
-            if len(limited_bullet) < len(bullet):
-                truncated = True
-                break
-
-        if not bullets:
-            break
-        limited.append(SummarySection(heading=section.heading, bullets=bullets))
-        used = len(SummaryResult(limited).summary_text)
-        if truncated:
-            break
-    return limited
+    return SummaryResult(sections=sections)
 
 
 def _normalize_bullet(value: str) -> str:

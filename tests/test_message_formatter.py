@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from app.models import Article
 from app.publishers.telegram_publisher import (
+    SUMMARY_CHARS_PER_MESSAGE,
     TELEGRAM_LIMIT,
     format_telegram_message,
     format_telegram_messages,
@@ -42,8 +43,13 @@ def test_message_formatter_splits_long_summary_without_losing_content():
     messages = format_telegram_messages(article)
 
     assert len(messages) > 1
+    assert SUMMARY_CHARS_PER_MESSAGE == 2000
     assert all(len(message) <= TELEGRAM_LIMIT for message in messages)
     assert all("Original Title" in message for message in messages)
+    assert all(
+        f"({index}/{len(messages)})" in message
+        for index, message in enumerate(messages, start=1)
+    )
     assert "원문 보기" not in messages[0]
     assert "원문 보기" in messages[-1]
     combined = "".join(messages)

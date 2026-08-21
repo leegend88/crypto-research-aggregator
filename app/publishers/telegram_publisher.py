@@ -9,6 +9,9 @@ from app.models import Article
 from app.publishers.base import BasePublisher
 
 TELEGRAM_LIMIT = 4096
+SUMMARY_CHARS_PER_MESSAGE = 2000
+
+SummarySectionData = tuple[str | None, list[str]]
 
 
 class TelegramPublishError(RuntimeError):
@@ -70,56 +73,116 @@ def format_telegram_message(article: Article) -> str:
 def format_telegram_messages(article: Article) -> list[str]:
     title = html.escape(article.title)
     url = html.escape(article.url, quote=True)
+    sections = _parse_summary_sections(article.summary or "")
+    if not sections:
+        sections = [(None, ["요약 내용이 없습니다."])]
 
-    header = (
-        f"📌 <b>{title}</b>\n"
-        f"\n"
-        f"<b>핵심 요약</b>"
-    )
-    continuation = f"📌 <b>{title}</b> (계속)"
-    footer = f'🔗 <a href="{url}">원문 보기</a>'
-    reserve = len(footer) + 2
-    content_limit = TELEGRAM_LIMIT - reserve
-
-    blocks = _format_summary_blocks(article.summary or "", content_limit)
+    pages = _paginate_summary_sections(sections, SUMMARY_CHARS_PER_MESSAGE)
+    page_count = len(pages)
     messages: list[str] = []
-    current = header
-    for block in blocks:
-        separator = "\n\n"
-        if len(current) + len(separator) + len(block) <= content_limit:
-            current += separator + block
-            continue
-        messages.append(current)
-        current = continuation + separator + block
-
-    messages.append(current + "\n\n" + footer)
+    for index, page in enumerate(pages, start=1):
+        page_label = f" ({index}/{page_count})" if page_count > 1 else ""
+        header = (
+            f"📌 <b>{title}</b>{page_label}\n\n"
+            f"<b>핵심 요약{page_label}</b>"
+        )
+        blocks = [_format_summary_section(section) for section in page]
+        message = header + "\n\n" + "\n\n".join(blocks)
+        if index == page_count:
+            message += f'\n\n🔗 <a href="{url}">원문 보기</a>'
+        if len(message) > TELEGRAM_LIMIT:
+            raise TelegramPublishError(
+                f"Formatted Telegram message exceeds {TELEGRAM_LIMIT} characters"
+            )
+        messages.append(message)
     return messages
 
 
-def _format_summary_blocks(summary: str, content_limit: int) -> list[str]:
-    sections = _parse_summary_sections(summary)
-    if not sections:
-        return ["요약 내용이 없습니다."]
-
-    max_body_length = max(200, content_limit - 300)
-    blocks: list[str] = []
+def _paginate_summary_sections(
+    sections: list[SummarySectionData],
+    limit: int,
+) -> list[list[SummarySectionData]]:
+    chunks: list[SummarySectionData] = []
     for heading, bullets in sections:
-        escaped_heading = html.escape(heading) if heading else ""
-        prefix = f"<b>{escaped_heading}</b>\n" if escaped_heading else ""
-        body = "\n".join(f"• {bullet}" for bullet in bullets)
-        available = max(100, max_body_length - len(prefix))
-        body_parts = _split_escaped_text(body, available)
-        for index, body_part in enumerate(body_parts):
-            part_prefix = prefix
-            if index > 0 and escaped_heading:
-                part_prefix = f"<b>{escaped_heading} (계속)</b>\n"
-            blocks.append(part_prefix + html.escape(body_part))
-    return blocks
+        chunks.extend(_split_section(heading, bullets, limit))
+
+    pages: list[list[SummarySectionData]] = []
+    current: list[SummarySectionData] = []
+    current_length = 0
+    for section in chunks:
+        section_length = len(_serialize_summary_section(section))
+        separator_length = 2 if current else 0
+        if current and current_length + separator_length + section_length > limit:
+            pages.append(current)
+            current = []
+            current_length = 0
+            separator_length = 0
+        current.append(section)
+        current_length += separator_length + section_length
+
+    if current:
+        pages.append(current)
+    return pages or [[(None, ["요약 내용이 없습니다."])]]
 
 
-def _parse_summary_sections(summary: str) -> list[tuple[str | None, list[str]]]:
+def _split_section(
+    heading: str | None,
+    bullets: list[str],
+    limit: int,
+) -> list[SummarySectionData]:
+    continuation_heading = f"{heading} (계속)" if heading else None
+    heading_budget = max(
+        len(_section_prefix(heading)),
+        len(_section_prefix(continuation_heading)),
+    )
+    bullet_limit = max(100, limit - heading_budget - 2)
+    expanded_bullets = [
+        part
+        for bullet in bullets
+        for part in _split_text_without_loss(bullet, bullet_limit)
+    ]
+
+    chunks: list[SummarySectionData] = []
+    current_bullets: list[str] = []
+    current_heading = heading
+    for bullet in expanded_bullets:
+        candidate = (current_heading, [*current_bullets, bullet])
+        if current_bullets and len(_serialize_summary_section(candidate)) > limit:
+            chunks.append((current_heading, current_bullets))
+            current_heading = continuation_heading
+            current_bullets = []
+        current_bullets.append(bullet)
+
+    if current_bullets:
+        chunks.append((current_heading, current_bullets))
+    return chunks
+
+
+def _format_summary_section(section: SummarySectionData) -> str:
+    heading, bullets = section
+    lines: list[str] = []
+    if heading:
+        lines.append(f"<b>{html.escape(heading)}</b>")
+    lines.extend(f"• {html.escape(bullet)}" for bullet in bullets)
+    return "\n".join(lines)
+
+
+def _serialize_summary_section(section: SummarySectionData) -> str:
+    heading, bullets = section
+    lines: list[str] = []
+    if heading:
+        lines.append(f"## {heading}")
+    lines.extend(f"• {bullet}" for bullet in bullets)
+    return "\n".join(lines)
+
+
+def _section_prefix(heading: str | None) -> str:
+    return f"## {heading}\n" if heading else ""
+
+
+def _parse_summary_sections(summary: str) -> list[SummarySectionData]:
     paragraphs = [part.strip() for part in summary.split("\n\n") if part.strip()]
-    sections: list[tuple[str | None, list[str]]] = []
+    sections: list[SummarySectionData] = []
     for paragraph in paragraphs:
         lines = paragraph.splitlines()
         if lines[0].startswith("## "):
@@ -143,29 +206,24 @@ def _normalize_summary_bullet(value: str) -> str:
     return value
 
 
-def _split_escaped_text(text: str, limit: int) -> list[str]:
+def _split_text_without_loss(text: str, limit: int) -> list[str]:
     remaining = text.strip()
     parts: list[str] = []
-    while remaining:
-        if len(html.escape(remaining)) <= limit:
-            parts.append(remaining)
-            break
-
-        low, high = 1, len(remaining)
-        while low < high:
-            middle = (low + high + 1) // 2
-            if len(html.escape(remaining[:middle])) <= limit:
-                low = middle
-            else:
-                high = middle - 1
-
-        split_at = low
-        whitespace = max(
-            remaining.rfind(" ", 0, split_at),
-            remaining.rfind("\n", 0, split_at),
+    while len(remaining) > limit:
+        candidate = remaining[:limit]
+        sentence_end = max(
+            candidate.rfind(".") + 1,
+            candidate.rfind("!") + 1,
+            candidate.rfind("?") + 1,
+            candidate.rfind("。") + 1,
         )
-        if whitespace > 0:
-            split_at = whitespace
+        if sentence_end >= int(limit * 0.5):
+            split_at = sentence_end
+        else:
+            whitespace = max(candidate.rfind(" "), candidate.rfind("\n"))
+            split_at = whitespace if whitespace >= int(limit * 0.5) else limit
         parts.append(remaining[:split_at].rstrip())
         remaining = remaining[split_at:].lstrip()
+    if remaining:
+        parts.append(remaining)
     return parts
