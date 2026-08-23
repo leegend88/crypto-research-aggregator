@@ -56,6 +56,7 @@ def test_run_pipeline_processes_latest_articles_up_to_limit(tmp_path, monkeypatc
                         bullets=["상세한 핵심 내용"],
                     )
                 ],
+                korean_title=f"{title} 한국어 제목",
             )
 
     class FakePublisher:

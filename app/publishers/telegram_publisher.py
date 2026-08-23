@@ -71,7 +71,7 @@ def format_telegram_message(article: Article) -> str:
 
 
 def format_telegram_messages(article: Article) -> list[str]:
-    title = html.escape(article.title)
+    title = html.escape(article.korean_title or article.title)
     url = html.escape(article.url, quote=True)
     sections = _parse_summary_sections(article.summary or "")
     if not sections:

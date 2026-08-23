@@ -143,10 +143,11 @@ Telegram messages are sent in this shape:
 🔗 원문 보기
 ```
 
-Summaries follow the article's full section order without a total-length cutoff.
-The publisher splits them into consecutive Telegram posts of about 2,000
-characters, labels each post `(1/N)`, `(2/N)`, and preserves the remaining
-sections instead of cutting them off.
+The article title is translated naturally into Korean. Summaries consolidate
+the body into 3-6 major sections and usually target about 1,000-1,500 Korean
+characters. Unusually long summaries are still split into consecutive Telegram
+posts of about 2,000 characters and labeled `(1/N)`, `(2/N)` without dropping
+content.
 
 ## Tests
 

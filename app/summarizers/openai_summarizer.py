@@ -11,6 +11,7 @@ SUMMARY_PROMPT = """Summarize the following crypto research article for a Korean
 
 Return strict JSON with this shape:
 {{
+  "korean_title": "Natural Korean translation of the article title",
   "sections": [
     {{
       "heading": "Concise Korean translation of an original section heading",
@@ -20,17 +21,18 @@ Return strict JSON with this shape:
 }}
 
 Rules:
+- Translate the article title naturally into Korean for `korean_title`.
+- Keep proper nouns, project names, token symbols, and company names recognizable, but do not leave the entire title in English.
 - Follow the article's original section order.
 - Use the article's real intermediate headings as section headings and translate them naturally into Korean.
 - If the article has no explicit intermediate headings, create concise topic headings from the body.
 - Never reuse, paraphrase, or truncate the article title as a section heading.
-- Write 2 to 4 Korean bullet points for each major section when the source contains enough detail.
-- Each bullet may use up to two complete sentences and should explain the fact, supporting evidence or figure, and why it matters in context.
-- Avoid terse fragments. Preserve the article's causal reasoning, comparisons, caveats, and concrete examples.
-- Cover every major section, combining minor adjacent sections only when needed to stay concise.
-- Include every major section needed to represent the full article; do not stop after an arbitrary character count.
-- Keep each bullet focused and complete. The publisher will split the full summary into consecutive Telegram posts of about 2,000 characters.
-- Do not omit later sections merely to fit one Telegram post.
+- Consolidate the article into 3 to 6 major sections, combining adjacent sections that support the same argument.
+- Write 1 to 3 Korean bullet points per section and use one complete sentence per bullet.
+- Target about 1,000 to 1,500 Korean characters for the full summary; exceed this only when essential to preserve the article's thesis or conclusion.
+- Keep only the most decision-relevant figures and examples; combine long lists of trades, assets, people, or dates into one representative point.
+- Preserve causal reasoning, meaningful comparisons, important caveats, and the conclusion without retelling every paragraph.
+- Keep each bullet focused and self-contained. The publisher will still split unusually long summaries into consecutive Telegram posts.
 - Prioritize the main thesis, supporting evidence, important figures, and conclusion.
 - Summarize only the article body. Ignore ads, navigation, sidebars, related articles, image captions, author biographies, and boilerplate.
 - Never describe the page or extraction process. Do not write phrases such as "the title says", "the introduction says", "the source is", "the body is missing", or "ads were removed".
@@ -50,6 +52,7 @@ Article body:
 """
 
 MAX_HEADING_CHARS = 80
+MAX_BULLETS_PER_SECTION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +64,7 @@ class SummarySection:
 @dataclass(frozen=True, slots=True)
 class SummaryResult:
     sections: list[SummarySection]
+    korean_title: str | None = None
 
     @property
     def summary_text(self) -> str:
@@ -95,6 +99,9 @@ class OpenAISummarizer:
 
 def parse_summary_response(raw: str) -> SummaryResult:
     payload = _load_json(raw)
+    korean_title = str(payload.get("korean_title", "")).strip()
+    if not korean_title:
+        raise SummaryError("OpenAI response requires korean_title")
     sections_raw = payload.get("sections", [])
     if not isinstance(sections_raw, list):
         raise SummaryError("OpenAI response sections must be a list")
@@ -115,13 +122,13 @@ def parse_summary_response(raw: str) -> SummaryResult:
         sections.append(
             SummarySection(
                 heading=_truncate_text(heading, MAX_HEADING_CHARS),
-                bullets=bullets[:4],
+                bullets=bullets[:MAX_BULLETS_PER_SECTION],
             )
         )
 
     if not sections:
         raise SummaryError("OpenAI response must contain at least one section")
-    return SummaryResult(sections=sections)
+    return SummaryResult(sections=sections, korean_title=korean_title)
 
 
 def _normalize_bullet(value: str) -> str:

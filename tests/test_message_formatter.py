@@ -14,16 +14,16 @@ def test_message_formatter_escapes_html_and_omits_metadata():
         source_name="A&B Research",
         title="<ETH> update",
         url="https://example.com/?a=1&b=2",
-        korean_title="사용하지 않을 번역 제목",
+        korean_title="이더리움 업데이트",
         published_at=datetime(2026, 8, 16, tzinfo=UTC),
         summary="## 시장 배경\n• ETH <staking>이 증가했다.",
     )
 
     message = format_telegram_message(article)
 
-    assert message.startswith("📌 <b>&lt;ETH&gt; update</b>")
+    assert message.startswith("📌 <b>이더리움 업데이트</b>")
     assert "원문 제목:" not in message
-    assert "사용하지 않을 번역 제목" not in message
+    assert "&lt;ETH&gt; update" not in message
     assert "출처:" not in message
     assert "발행일:" not in message
     assert "<b>시장 배경</b>" in message
@@ -71,3 +71,14 @@ def test_message_formatter_uses_title_summary_and_link_order():
     assert lines[2] == "<b>핵심 요약</b>"
     assert "• 첫 번째 핵심 내용이다." in message
     assert "🔗" in message
+
+
+def test_message_formatter_falls_back_to_original_title():
+    article = Article(
+        source_name="Source",
+        title="Original Title",
+        url="https://example.com/article",
+        summary="## 개요\n• 핵심 내용이다.",
+    )
+
+    assert format_telegram_message(article).startswith("📌 <b>Original Title</b>")
