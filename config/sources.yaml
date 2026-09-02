@@ -14,12 +14,13 @@ sources:
     enabled: false
 
   - name: 4Pillars Research
-    type: sitemap
-    url: https://research.4pillars.io/sitemap.xml
+    # GitHub-hosted runners receive HTTP 429 from the large sitemap endpoint.
+    # The server-rendered research listing exposes the latest article links.
+    type: html_listing
+    url: https://research.4pillars.io/en/research
     include_url_patterns:
       - /en/research/
     max_items: 30
-    max_sitemaps: 1
     enabled: true
 
   - name: Tiger Research Korean

@@ -70,7 +70,7 @@ sources:
     enabled: true
 ```
 
-Only enabled RSS sources are collected. The collector interface is isolated so API
+Only enabled sources are collected. The collector interface is isolated so API
 collectors can be added later.
 
 Supported source types:
@@ -84,6 +84,9 @@ CoinMarketCap Community Articles as enabled sources. Binance Research is include
 but disabled because its article pages currently return an anti-bot empty response
 to requests-based extraction; it should be enabled after adding a browser or
 official API-backed extractor.
+
+4Pillars uses its server-rendered research listing because its sitemap rate-limits
+requests from GitHub-hosted runners.
 
 ## Run
 
