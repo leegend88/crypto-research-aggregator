@@ -1,9 +1,9 @@
 """Check public collection and extraction without credentials or publication."""
 
 from pathlib import Path
+import argparse
 
 import requests
-from playwright.sync_api import sync_playwright
 
 from app.collectors.html_listing_collector import HTMLListingCollector
 from app.config import enabled_sources
@@ -11,6 +11,9 @@ from app.extractors.article_extractor import ArticleExtractor
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--browser", action="store_true")
+    args = parser.parse_args()
     failed = False
     for source in enabled_sources(Path("config/sources.yaml")):
         if source.name not in {"4Pillars Research", "Tiger Research Korean"}:
@@ -32,7 +35,9 @@ def main() -> None:
                       f"retry-after={response.headers.get('retry-after')} "
                       f"content-type={response.headers.get('content-type')}")
                 print(response.text[:500].encode("ascii", "backslashreplace").decode())
-                if source.name == "4Pillars Research":
+                if args.browser and source.name == "4Pillars Research":
+                    from playwright.sync_api import sync_playwright
+
                     with sync_playwright() as playwright:
                         browser = playwright.chromium.launch()
                         page = browser.new_page()

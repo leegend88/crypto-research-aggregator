@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import deque
+from collections import Counter, deque
 import logging
 from datetime import UTC, datetime
 
@@ -60,15 +60,26 @@ def run_pipeline(settings: Settings) -> RunStats:
         collected_articles.extend(articles)
         logger.info("Collected %s article(s) from %s", len(articles), source.name)
 
+    new_by_source: Counter[str] = Counter()
+    duplicate_by_source: Counter[str] = Counter()
     for article in sorted(collected_articles, key=_article_sort_key, reverse=True):
         article_id = repository.save_discovered(article)
         if article_id is None:
             stats.duplicates += 1
+            duplicate_by_source[article.source_name] += 1
             continue
         stats.new += 1
+        new_by_source[article.source_name] += 1
 
     pending = repository.pending_articles(retry_failed=settings.retry_failed_articles)
     selected = _select_articles_for_run(pending, settings.max_articles_per_run)
+    selected_by_source = Counter(article.source_name for _, article in selected)
+    for source_name in dict.fromkeys(article.source_name for article in collected_articles):
+        logger.info(
+            "Source status: source=%s new=%s duplicates=%s selected=%s",
+            source_name, new_by_source[source_name],
+            duplicate_by_source[source_name], selected_by_source[source_name],
+        )
     for article_id, article in selected:
         _process_article(
             article_id,
@@ -145,6 +156,7 @@ def _process_article(
             korean_title=article.korean_title,
         )
         stats.publish_success += 1
+        logger.info("Published article: source=%s url=%s", article.source_name, article.url)
     except Exception as exc:
         logger.exception("Article publish failed: %s", article.url)
         repository.update_status(

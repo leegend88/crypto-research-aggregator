@@ -85,8 +85,18 @@ but disabled because its article pages currently return an anti-bot empty respon
 to requests-based extraction; it should be enabled after adding a browser or
 official API-backed extractor.
 
-4Pillars uses its server-rendered research listing because its sitemap rate-limits
-requests from GitHub-hosted runners.
+4Pillars uses its server-rendered research listing. As of 2026-09-07, both its
+sitemap and listing return Vercel Security Checkpoint responses on GitHub-hosted
+Ubuntu and Windows runners, including standard Chromium browser requests.
+Local collection works, but cloud collection is not restored. An approved feed,
+API, or access arrangement with the publisher is needed for reliable cloud use.
+
+The manually triggered `Check research sources` workflow checks collection and
+two article bodies for 4Pillars and Tiger without API keys or Telegram sends.
+Run `python -m scripts.check_sources` for the requests-only local check.
+The optional `--browser` diagnostic requires Playwright and Chromium installed.
+Daily runs log per-source new, duplicate, and selected counts and warn in Actions
+when failures occur; successful Telegram publications are logged with their URLs.
 
 ## Run
 
