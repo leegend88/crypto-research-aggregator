@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import requests
+from playwright.sync_api import sync_playwright
 
 from app.collectors.html_listing_collector import HTMLListingCollector
 from app.config import enabled_sources
@@ -31,6 +32,22 @@ def main() -> None:
                       f"retry-after={response.headers.get('retry-after')} "
                       f"content-type={response.headers.get('content-type')}")
                 print(response.text[:500].encode("ascii", "backslashreplace").decode())
+                if source.name == "4Pillars Research":
+                    with sync_playwright() as playwright:
+                        browser = playwright.chromium.launch()
+                        page = browser.new_page()
+                        page.goto(source.url, wait_until="domcontentloaded")
+                        try:
+                            page.locator('a[href*="/en/research/"]').first.wait_for(timeout=30000)
+                            articles = HTMLListingCollector(source)._parse_listing(page.content())
+                            print(f"Browser collected={len(articles)}", flush=True)
+                            for article in articles[:2]:
+                                page.goto(article.url, wait_until="networkidle")
+                                print(f"Browser article title={page.title()} body_chars={len(page.inner_text('body'))}", flush=True)
+                        except Exception as browser_exc:
+                            print(f"Browser failed: {type(browser_exc).__name__} title={page.title()}", flush=True)
+                        finally:
+                            browser.close()
     if failed:
         raise SystemExit(1)
 
