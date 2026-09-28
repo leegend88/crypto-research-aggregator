@@ -58,7 +58,7 @@ class Settings:
             min_article_length=_int_env("MIN_ARTICLE_LENGTH", 500),
             max_article_length=_int_env("MAX_ARTICLE_LENGTH", 50000),
             max_articles_per_run=_int_env("MAX_ARTICLES_PER_RUN", 5),
-            retry_failed_articles=_bool_env("RETRY_FAILED_ARTICLES", False),
+            retry_failed_articles=_bool_env("RETRY_FAILED_ARTICLES", True),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
         )
 

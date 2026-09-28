@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from urllib.parse import urldefrag, urljoin, urlparse
 
 import dateparser
@@ -31,6 +31,13 @@ class HTMLListingCollector(BaseCollector):
         soup = BeautifulSoup(html, "html.parser")
         articles: list[Article] = []
         seen_urls: set[str] = set()
+        article_urls = {
+            _normalize_url(urljoin(self.source.url, anchor.get("href", "")))
+            for anchor in soup.select("a[href]")
+            if self._should_include_url(
+                _normalize_url(urljoin(self.source.url, anchor.get("href", "")))
+            )
+        }
 
         for anchor in soup.select("a[href]"):
             url = _normalize_url(urljoin(self.source.url, anchor.get("href", "")))
@@ -48,7 +55,7 @@ class HTMLListingCollector(BaseCollector):
                     title=title,
                     url=url,
                     external_id=url,
-                    published_at=_extract_date(anchor),
+                    published_at=_extract_date(anchor, article_urls, self.source.url),
                 )
             )
             if len(articles) >= self.source.max_items:
@@ -122,7 +129,29 @@ def _clean_title(value: str) -> str | None:
     return value[:180].strip() or None
 
 
-def _extract_date(anchor) -> datetime | None:
+def _extract_date(anchor, article_urls: set[str], base_url: str) -> datetime | None:
+    article_url = _normalize_url(urljoin(base_url, anchor.get("href", "")))
+    for container in [anchor, *anchor.parents]:
+        if container.name in {"body", "html", "[document]"}:
+            break
+        # Stop before entering a sibling article's card or a shared listing.
+        linked_articles = {
+            _normalize_url(urljoin(base_url, link.get("href", "")))
+            for link in container.select("a[href]")
+        } & article_urls
+        if linked_articles - {article_url}:
+            break
+        for time_tag in container.select("time[datetime]"):
+            try:
+                parsed = datetime.fromisoformat(time_tag["datetime"])
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC)
+        if container.name in {"article", "li"}:
+            break
+
     parent = anchor.find_parent(["article", "li", "div"]) or anchor
     text = parent.get_text(" ", strip=True)
     patterns = [

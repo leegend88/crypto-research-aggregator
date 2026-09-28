@@ -51,6 +51,18 @@ Each run stores newly discovered articles, then processes at most
 order, while articles within each source remain latest-first, so one high-volume
 source cannot occupy the entire run.
 
+Extraction and summary failures are retried by default (`RETRY_FAILED_ARTICLES=true`),
+with a six-hour cooldown and at most three total processing attempts per article.
+When new articles are pending, retries use at most one slot per run and leave at
+least one slot for new articles. Disabled sources and completed articles are excluded.
+Telegram publication failures require manual review because a timeout or a failure
+partway through a multipart post may mean some messages were already delivered.
+Existing databases are migrated automatically; old failed articles are counted as
+having one prior attempt. Set `RETRY_FAILED_ARTICLES=false` to disable retries.
+
+HTML listings read each article's `time[datetime]` when available and store dates
+in UTC. Rediscovering an existing URL refreshes its date without republishing it.
+
 ## Telegram Setup
 
 1. Create a bot with BotFather and copy the token.

@@ -14,6 +14,7 @@ from app.models import (
     Article,
     RunStats,
     STATUS_COMPLETED,
+    STATUS_DISCOVERED,
     STATUS_EXTRACT_FAILED,
     STATUS_PUBLISH_FAILED,
     STATUS_SUMMARY_FAILED,
@@ -44,7 +45,8 @@ def run_pipeline(settings: Settings) -> RunStats:
     stats = RunStats()
     collected_articles: list[Article] = []
 
-    for source in enabled_sources(settings.sources_config_path):
+    sources = enabled_sources(settings.sources_config_path)
+    for source in sources:
         collector_class = _collector_for_source_type(source.type)
         if collector_class is None:
             logger.warning("Skipping unsupported source type: %s", source.type)
@@ -72,6 +74,8 @@ def run_pipeline(settings: Settings) -> RunStats:
         new_by_source[article.source_name] += 1
 
     pending = repository.pending_articles(retry_failed=settings.retry_failed_articles)
+    active_source_names = {source.name for source in sources}
+    pending = [item for item in pending if item[1].source_name in active_source_names]
     selected = _select_articles_for_run(pending, settings.max_articles_per_run)
     selected_by_source = Counter(article.source_name for _, article in selected)
     for source_name in dict.fromkeys(article.source_name for article in collected_articles):
@@ -114,7 +118,8 @@ def _process_article(
     publisher: TelegramPublisher,
     stats: RunStats,
 ) -> None:
-    logger.info("Processing article: %s", article.url)
+    logger.info("Processing article: %s status=%s", article.url, article.status)
+    repository.record_attempt(article_id)
     try:
         article.content = extractor.extract(article.url)
         stats.extraction_success += 1
@@ -184,6 +189,19 @@ def _select_articles_for_run(
     if limit <= 0:
         return []
 
+    fresh = [item for item in pending if item[1].status == STATUS_DISCOVERED]
+    retries = [item for item in pending if item[1].status != STATUS_DISCOVERED]
+    if not fresh:
+        return _round_robin_articles(retries, limit)
+    retry_limit = 1 if retries and limit > 1 else 0
+    selected = _round_robin_articles(fresh, limit - retry_limit)
+    selected.extend(_round_robin_articles(retries, min(retry_limit, limit - len(selected))))
+    return selected
+
+
+def _round_robin_articles(
+    pending: list[tuple[int, Article]], limit: int,
+) -> list[tuple[int, Article]]:
     by_source: dict[str, deque[tuple[int, Article]]] = {}
     for item in pending:
         by_source.setdefault(item[1].source_name, deque()).append(item)

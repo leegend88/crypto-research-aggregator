@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Iterator
 
 from app.models import Article, STATUS_COMPLETED, STATUS_DISCOVERED
+
+MAX_PROCESSING_ATTEMPTS = 3
+RETRY_DELAY = timedelta(hours=6)
 
 
 class ArticleRepository:
@@ -51,6 +54,15 @@ class ArticleRepository:
             }
             if "korean_title" not in columns:
                 conn.execute("ALTER TABLE articles ADD COLUMN korean_title TEXT")
+            if "attempt_count" not in columns:
+                conn.execute(
+                    "ALTER TABLE articles ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0"
+                )
+                conn.execute(
+                    "UPDATE articles SET attempt_count = 1 WHERE status != 'discovered'"
+                )
+            if "last_attempt_at" not in columns:
+                conn.execute("ALTER TABLE articles ADD COLUMN last_attempt_at TEXT")
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_articles_external_id
@@ -157,19 +169,27 @@ class ArticleRepository:
                 (status, summary, korean_title, error_message, processed_at, article_id),
             )
 
+    def record_attempt(self, article_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE articles SET attempt_count = attempt_count + 1, "
+                "last_attempt_at = ? WHERE id = ?",
+                (_datetime_to_text(_now()), article_id),
+            )
+
     def pending_articles(self, retry_failed: bool = False) -> list[tuple[int, Article]]:
-        statuses = ["discovered"]
-        if retry_failed:
-            statuses.extend(["extract_failed", "summary_failed", "publish_failed"])
-        placeholders = ",".join("?" for _ in statuses)
         with self.connect() as conn:
             rows = conn.execute(
-                f"""
+                """
                 SELECT * FROM articles
-                WHERE status IN ({placeholders})
-                ORDER BY COALESCE(published_at, discovered_at) DESC, discovered_at DESC
+                WHERE status = 'discovered'
+                    OR (? AND status IN ('extract_failed', 'summary_failed')
+                        AND attempt_count < ?
+                        AND (last_attempt_at IS NULL OR julianday(last_attempt_at) <= julianday(?)))
+                ORDER BY julianday(COALESCE(published_at, discovered_at)) DESC,
+                    discovered_at DESC
                 """,
-                statuses,
+                (retry_failed, MAX_PROCESSING_ATTEMPTS, _datetime_to_text(_now() - RETRY_DELAY)),
             ).fetchall()
         return [(int(row["id"]), _row_to_article(row)) for row in rows]
 
@@ -193,7 +213,7 @@ def _datetime_to_text(value: datetime | None) -> str | None:
         return None
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
-    return value.isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 def _text_to_datetime(value: str | None) -> datetime | None:
